@@ -12,6 +12,8 @@ type Lead = {
   message: string | null;
   budget: number | null;
   status: string;
+  score: number | null;
+  category: string | null;
   created_at: string;
 };
 
@@ -34,7 +36,7 @@ export default function DashboardPage() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("leads")
-      .select("id,name,email,phone,message,budget,status,created_at")
+        .select("id,name,email,phone,message,budget,status,score,category,created_at")
       .order("created_at", { ascending: false });
     if (error) {
       setError(error.message);
@@ -156,7 +158,23 @@ export default function DashboardPage() {
             <li key={l.id} className="rounded border border-gray-600 p-3">
               <div className="flex justify-between">
                 <span className="font-semibold">{l.name}</span>
-                <span className="text-xs uppercase opacity-70">{l.status}</span>
+                                <span className="text-xs uppercase">
+                  {l.category ? (
+                    <b
+                      className={
+                        l.category === "hot"
+                          ? "text-red-500"
+                          : l.category === "warm"
+                          ? "text-yellow-500"
+                          : "text-blue-400"
+                      }
+                    >
+                      {l.category} {l.score}
+                    </b>
+                  ) : (
+                    <span className="opacity-70">unqualified</span>
+                  )}
+                </span>
               </div>
               <div className="text-sm opacity-80">
                 {[l.email, l.phone].filter(Boolean).join(" · ")}
