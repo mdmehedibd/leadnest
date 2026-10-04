@@ -70,6 +70,34 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-
+  // n8n-কে জানাও। এটা fail করলেও lead save থেকে যাবে।
+  const webhookUrl = process.env.N8N_WEBHOOK_URL;
+  if (webhookUrl) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-webhook-secret": process.env.N8N_WEBHOOK_SECRET ?? "",
+        },
+        body: JSON.stringify({
+          lead_id: lead.id,
+          organization_id: org.id,
+          name,
+          email,
+          phone,
+          message,
+          budget,
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      console.error("n8n webhook failed:", err);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   return NextResponse.json({ success: true, id: lead.id }, { status: 201 });
 }
