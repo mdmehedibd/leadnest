@@ -9,6 +9,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSignup(e: React.FormEvent) {
@@ -17,14 +18,18 @@ export default function SignupPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/login` },
+    });
 
     setLoading(false);
     if (error) {
       setError(error.message);
       return;
     }
-    router.push("/dashboard");
+        setInfo("Check your email to confirm your account, then log in.");
   }
 
   return (
@@ -51,6 +56,7 @@ export default function SignupPage() {
         />
 
         {error && <p className="text-sm text-red-500">{error}</p>}
+        {info && <p className="text-sm text-green-500">{info}</p>}
 
         <button
           type="submit"
