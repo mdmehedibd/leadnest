@@ -1,3 +1,4 @@
+import { makeToken } from "@/lib/unsubscribe-token";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 
@@ -24,5 +25,10 @@ export async function GET(request: Request) {
   if (error) {
     return NextResponse.json({ error: "Query failed" }, { status: 500 });
   }
-  return NextResponse.json({ leads: data ?? [] });
+    const base = "https://leadnest-sigma.vercel.app";
+  const leads = (data ?? []).map((l) => ({
+    ...l,
+    unsubscribe_url: `${base}/unsubscribe?lead=${l.id}&token=${makeToken(l.id)}`,
+  }));
+  return NextResponse.json({ leads });
 }
