@@ -46,7 +46,14 @@ export async function POST(request: Request) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("leads")
-    .update({ category, score })
+        .update({
+      category,
+      score,
+      next_followup_at:
+        category === "hot"
+          ? null
+          : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    })
     .eq("id", leadId)
     .eq("organization_id", orgId)
     .select("id");
