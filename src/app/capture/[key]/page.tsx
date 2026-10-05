@@ -12,6 +12,7 @@ export default function CapturePage() {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [error, setError] = useState("");
+  const [website, setWebsite] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,6 +30,7 @@ export default function CapturePage() {
           phone,
           budget,
           message,
+          website,
         }),
       });
       const json = await res.json();
@@ -61,6 +63,16 @@ export default function CapturePage() {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-3">
+        <input
+          type="text"
+          name="website"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          style={{ position: "absolute", left: "-9999px" }}
+        />
         <h1 className="text-2xl font-bold">Find your dream property</h1>
         <p className="text-sm opacity-70">Tell us what you are looking for.</p>
 

@@ -34,7 +34,10 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-
+  // Honeypot: bot এই লুকানো ঘর ভরে ফেলে
+  if (body.website) {
+    return NextResponse.json({ success: true }, { status: 201 });
+  }
   const supabase = createAdminClient();
 
   const { data: org } = await supabase
@@ -49,7 +52,36 @@ export async function POST(request: Request) {
       { status: 401 }
     );
   }
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
 
+  // IP limit: ঘণ্টায় সর্বোচ্চ ৫টা
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: ipCount } = await supabase
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("client_ip", ip)
+    .gte("created_at", hourAgo);
+  if ((ipCount ?? 0) >= 5) {
+    return NextResponse.json(
+      { success: false, error: "Too many requests. Try again later." },
+      { status: 429 }
+    );
+  }
+
+  // Duplicate: একই org-এ একই email ১০ মিনিটে নয়
+  if (email) {
+    const tenAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { count: dupCount } = await supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", org.id)
+      .eq("email", email)
+      .gte("created_at", tenAgo);
+    if ((dupCount ?? 0) > 0) {
+      return NextResponse.json({ success: true }, { status: 201 });
+    }
+  }
   const { data: lead, error } = await supabase
     .from("leads")
     .insert({
@@ -60,6 +92,7 @@ export async function POST(request: Request) {
       message,
       budget,
       source: "website",
+      client_ip: ip,
     })
     .select("id")
     .single();
