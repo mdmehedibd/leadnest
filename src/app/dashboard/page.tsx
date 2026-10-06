@@ -20,6 +20,15 @@ type Lead = {
   created_at: string;
 };
 
+type Appointment = {
+  id: string;
+  lead_id: string;
+  scheduled_at: string;
+  type: "call" | "property_visit" | "meeting";
+  notes: string | null;
+  status: "scheduled" | "done" | "cancelled";
+};
+
 type Filter = "all" | "hot" | "warm" | "cold";
 type SortKey = "name" | "budget" | "score" | "created_at";
 
@@ -27,6 +36,19 @@ const BADGE: Record<string, string> = {
   hot: "bg-red-500/15 text-red-400 ring-red-500/30",
   warm: "bg-amber-500/15 text-amber-400 ring-amber-500/30",
   cold: "bg-sky-500/15 text-sky-400 ring-sky-500/30",
+};
+
+const TYPE_LABEL: Record<string, string> = {
+  call: "Call",
+  property_visit: "Property visit",
+  meeting: "Meeting",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  new: "New",
+  visit_scheduled: "Visit scheduled",
+  contacted: "Contacted",
+  closed: "Closed",
 };
 
 export default function DashboardPage() {
@@ -37,6 +59,7 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(true);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [appts, setAppts] = useState<Appointment[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
@@ -44,13 +67,20 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [selected, setSelected] = useState<Lead | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [leadEmail, setLeadEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
   const [budget, setBudget] = useState("");
+
+  // appointment form
+  const [apptWhen, setApptWhen] = useState("");
+  const [apptType, setApptType] = useState<Appointment["type"]>("property_visit");
+  const [apptNotes, setApptNotes] = useState("");
+  const [apptSaving, setApptSaving] = useState(false);
+  const [apptError, setApptError] = useState("");
 
   const loadLeads = useCallback(async () => {
     const supabase = createClient();
@@ -65,6 +95,19 @@ export default function DashboardPage() {
       return;
     }
     setLeads(data ?? []);
+  }, []);
+
+  const loadAppts = useCallback(async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("appointments")
+      .select("id,lead_id,scheduled_at,type,notes,status")
+      .order("scheduled_at", { ascending: true });
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setAppts((data ?? []) as Appointment[]);
   }, []);
 
   useEffect(() => {
@@ -96,11 +139,11 @@ export default function DashboardPage() {
         .single();
       if (org) setCaptureKey(org.capture_key);
 
-      await loadLeads();
+      await Promise.all([loadLeads(), loadAppts()]);
       setChecking(false);
     }
     init();
-  }, [router, loadLeads]);
+  }, [router, loadLeads, loadAppts]);
 
   async function handleAddLead(e: React.FormEvent) {
     e.preventDefault();
@@ -133,6 +176,63 @@ export default function DashboardPage() {
     await loadLeads();
   }
 
+  async function handleAddAppt(e: React.FormEvent) {
+    e.preventDefault();
+    if (!orgId || !selectedId) return;
+    setApptError("");
+
+    const when = new Date(apptWhen);
+    if (!apptWhen || isNaN(when.getTime())) {
+      setApptError("Please choose a valid date and time.");
+      return;
+    }
+    if (when.getTime() < Date.now()) {
+      setApptError("Please choose a time in the future.");
+      return;
+    }
+
+    setApptSaving(true);
+    const supabase = createClient();
+    const { error } = await supabase.from("appointments").insert({
+      organization_id: orgId,
+      lead_id: selectedId,
+      scheduled_at: when.toISOString(),
+      type: apptType,
+      notes: apptNotes.trim() || null,
+    });
+    if (error) {
+      setApptSaving(false);
+      setApptError(error.message);
+      return;
+    }
+
+    // lead status -> visit_scheduled (শুধু new/contacted হলে)
+    await supabase
+      .from("leads")
+      .update({ status: "visit_scheduled" })
+      .eq("id", selectedId)
+      .in("status", ["new", "contacted"]);
+
+    setApptSaving(false);
+    setApptWhen("");
+    setApptNotes("");
+    setApptType("property_visit");
+    await Promise.all([loadAppts(), loadLeads()]);
+  }
+
+  async function setApptStatus(id: string, status: Appointment["status"]) {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("appointments")
+      .update({ status })
+      .eq("id", id);
+    if (error) {
+      setApptError(error.message);
+      return;
+    }
+    await loadAppts();
+  }
+
   const captureUrl = captureKey
     ? `${window.location.origin}/capture/${captureKey}`
     : "";
@@ -162,6 +262,56 @@ export default function DashboardPage() {
     }
   }
 
+  function openLead(id: string) {
+    setSelectedId(id);
+    setApptError("");
+  }
+
+  const selected = useMemo(
+    () => leads.find((l) => l.id === selectedId) ?? null,
+    [leads, selectedId]
+  );
+
+  const leadName = useMemo(() => {
+    const m = new Map<string, string>();
+    leads.forEach((l) => m.set(l.id, l.name));
+    return m;
+  }, [leads]);
+
+  const upcomingCountByLead = useMemo(() => {
+    const m = new Map<string, number>();
+    appts.forEach((a) => {
+      if (a.status === "scheduled" && new Date(a.scheduled_at).getTime() >= Date.now()) {
+        m.set(a.lead_id, (m.get(a.lead_id) ?? 0) + 1);
+      }
+    });
+    return m;
+  }, [appts]);
+
+  const upcoming = useMemo(
+    () =>
+      appts
+        .filter(
+          (a) =>
+            a.status === "scheduled" &&
+            new Date(a.scheduled_at).getTime() >= Date.now()
+        )
+        .slice(0, 5),
+    [appts]
+  );
+
+  const selectedAppts = useMemo(
+    () =>
+      appts
+        .filter((a) => a.lead_id === selectedId)
+        .sort(
+          (a, b) =>
+            new Date(b.scheduled_at).getTime() -
+            new Date(a.scheduled_at).getTime()
+        ),
+    [appts, selectedId]
+  );
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = leads.filter((l) => {
@@ -183,7 +333,6 @@ export default function DashboardPage() {
           dir
         );
       }
-      // budget / score: খালি মান সবসময় শেষে
       const av = a[sortKey];
       const bv = b[sortKey];
       if (av === null && bv === null) return 0;
@@ -237,6 +386,12 @@ export default function DashboardPage() {
     return `${l.followup_step} of 3 follow-up emails sent`;
   };
 
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString([], {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       {/* Top bar */}
@@ -278,6 +433,38 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
+        </section>
+
+        {/* Upcoming appointments */}
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <h2 className="text-sm font-semibold">Upcoming appointments</h2>
+          {upcoming.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">
+              No upcoming appointments. Open a lead to schedule one.
+            </p>
+          ) : (
+            <ul className="mt-3 divide-y divide-slate-800">
+              {upcoming.map((a) => (
+                <li
+                  key={a.id}
+                  onClick={() => openLead(a.lead_id)}
+                  className="flex cursor-pointer items-center justify-between gap-3 py-2 hover:text-blue-300"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">
+                      {leadName.get(a.lead_id) ?? "Lead"}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {TYPE_LABEL[a.type]}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-xs text-slate-300">
+                    {fmt(a.scheduled_at)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         {/* Capture link */}
@@ -378,32 +565,44 @@ export default function DashboardPage() {
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead className="border-b border-slate-800 text-xs uppercase tracking-wide text-slate-400">
                   <tr>
-                    {columns.slice(0, 1).map((c) => (
-                      <th key={c.key} className="px-4 py-3 font-medium">
-                        <button onClick={() => toggleSort(c.key)} className="uppercase hover:text-slate-200">
-                          {c.label}{arrow(c.key)}
-                        </button>
-                      </th>
-                    ))}
+                    <th className="px-4 py-3 font-medium">
+                      <button onClick={() => toggleSort("name")} className="uppercase hover:text-slate-200">
+                        Name{arrow("name")}
+                      </button>
+                    </th>
                     <th className="px-4 py-3 font-medium">Contact</th>
-                    {columns.slice(1).map((c) => (
-                      <th key={c.key} className="px-4 py-3 font-medium">
-                        <button onClick={() => toggleSort(c.key)} className="uppercase hover:text-slate-200">
-                          {c.label}{arrow(c.key)}
-                        </button>
-                      </th>
-                    ))}
+                    <th className="px-4 py-3 font-medium">
+                      <button onClick={() => toggleSort("budget")} className="uppercase hover:text-slate-200">
+                        Budget{arrow("budget")}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 font-medium">
+                      <button onClick={() => toggleSort("score")} className="uppercase hover:text-slate-200">
+                        Status{arrow("score")}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 font-medium">Stage</th>
+                    <th className="px-4 py-3 font-medium">
+                      <button onClick={() => toggleSort("created_at")} className="uppercase hover:text-slate-200">
+                        Date{arrow("created_at")}
+                      </button>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
                   {visible.map((l) => (
                     <tr
                       key={l.id}
-                      onClick={() => setSelected(l)}
+                      onClick={() => openLead(l.id)}
                       className="cursor-pointer hover:bg-slate-800/50"
                     >
                       <td className="px-4 py-3 font-medium text-slate-100">
                         {l.name}
+                        {upcomingCountByLead.has(l.id) && (
+                          <span title="Upcoming appointment" className="ml-2">
+                            📅
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-300">
                         <div>{l.email ?? "-"}</div>
@@ -432,6 +631,9 @@ export default function DashboardPage() {
                           </span>
                         )}
                       </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-400">
+                        {STATUS_LABEL[l.status] ?? l.status}
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
                         {new Date(l.created_at).toLocaleDateString()}
                       </td>
@@ -448,7 +650,7 @@ export default function DashboardPage() {
       {selected && (
         <div
           className="fixed inset-0 z-50 flex justify-end bg-black/60"
-          onClick={() => setSelected(null)}
+          onClick={() => setSelectedId(null)}
         >
           <aside
             className="h-full w-full max-w-md overflow-y-auto border-l border-slate-800 bg-slate-900 p-6"
@@ -457,14 +659,14 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-xl font-semibold">{selected.name}</h2>
               <button
-                onClick={() => setSelected(null)}
+                onClick={() => setSelectedId(null)}
                 className="rounded-lg border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
               >
                 Close
               </button>
             </div>
 
-            <div className="mt-3">
+            <div className="mt-3 flex items-center gap-2">
               {selected.category ? (
                 <span
                   className={
@@ -479,6 +681,9 @@ export default function DashboardPage() {
                   unqualified
                 </span>
               )}
+              <span className="text-xs text-slate-400">
+                {STATUS_LABEL[selected.status] ?? selected.status}
+              </span>
             </div>
 
             <dl className="mt-6 space-y-4 text-sm">
@@ -519,6 +724,106 @@ export default function DashboardPage() {
                 </dd>
               </div>
             </dl>
+
+            {/* Appointments */}
+            <div className="mt-8 border-t border-slate-800 pt-6">
+              <h3 className="text-sm font-semibold">Appointments</h3>
+
+              <form onSubmit={handleAddAppt} className="mt-3 space-y-3">
+                <input
+                  type="datetime-local"
+                  value={apptWhen}
+                  onChange={(e) => setApptWhen(e.target.value)}
+                  className={field}
+                  required
+                />
+                <select
+                  value={apptType}
+                  onChange={(e) =>
+                    setApptType(e.target.value as Appointment["type"])
+                  }
+                  className={field}
+                >
+                  <option value="property_visit">Property visit</option>
+                  <option value="call">Call</option>
+                  <option value="meeting">Meeting</option>
+                </select>
+                <textarea
+                  rows={2}
+                  value={apptNotes}
+                  onChange={(e) => setApptNotes(e.target.value)}
+                  placeholder="Notes (optional)"
+                  className={field}
+                />
+                {apptError && (
+                  <p className="text-sm text-red-400">{apptError}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={apptSaving}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+                >
+                  {apptSaving ? "Saving..." : "Schedule appointment"}
+                </button>
+              </form>
+
+              {selectedAppts.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-500">
+                  No appointments for this lead yet.
+                </p>
+              ) : (
+                <ul className="mt-4 space-y-3">
+                  {selectedAppts.map((a) => (
+                    <li
+                      key={a.id}
+                      className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-medium">
+                            {TYPE_LABEL[a.type]}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {fmt(a.scheduled_at)}
+                          </div>
+                        </div>
+                        <span
+                          className={
+                            "rounded-full px-2 py-0.5 text-xs uppercase ring-1 " +
+                            (a.status === "scheduled"
+                              ? "text-blue-300 ring-blue-500/40"
+                              : a.status === "done"
+                              ? "text-green-400 ring-green-500/40"
+                              : "text-slate-500 ring-slate-700")
+                          }
+                        >
+                          {a.status}
+                        </span>
+                      </div>
+                      {a.notes && (
+                        <p className="mt-2 text-xs text-slate-300">{a.notes}</p>
+                      )}
+                      {a.status === "scheduled" && (
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => setApptStatus(a.id, "done")}
+                            className="rounded border border-green-500/40 px-2 py-1 text-xs text-green-400 hover:bg-green-500/10"
+                          >
+                            Mark done
+                          </button>
+                          <button
+                            onClick={() => setApptStatus(a.id, "cancelled")}
+                            className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </aside>
         </div>
       )}
