@@ -50,6 +50,10 @@ Agent dashboard (HOT / WARM / COLD badges)
 - Signed (HMAC) one-click unsubscribe link
 - Spam protection: honeypot field, per-IP limit (5 per hour), duplicate email check
 - Server-side route protection for `/dashboard`
+- Lead search, sorting and a detail panel on the dashboard
+- Appointment booking (call, property visit, meeting) with automatic lead stage update
+- Upcoming appointments list on the dashboard
+- Telegram reminders: the evening before and 1 hour before each appointment
 
 ## Tech stack
 
@@ -92,6 +96,7 @@ N8N_WEBHOOK_URL=
 N8N_WEBHOOK_SECRET=
 N8N_CALLBACK_SECRET=
 UNSUBSCRIBE_SECRET=
+REMINDER_TIMEZONE=
 ```
 
 | Variable | Public? | Notes |
@@ -103,6 +108,7 @@ UNSUBSCRIBE_SECRET=
 | `N8N_WEBHOOK_SECRET` | secret | header secret for the n8n webhook |
 | `N8N_CALLBACK_SECRET` | secret | n8n calls the app with this header |
 | `UNSUBSCRIBE_SECRET` | secret | signs unsubscribe links |
+| `REMINDER_TIMEZONE` | no | e.g. America/Chicago, used for "evening before" reminders |
 
 ```bash
 npm run dev
@@ -118,6 +124,8 @@ Open http://localhost:3000.
 | `/api/leads/qualified` | POST | n8n saves AI result | `x-callback-secret` |
 | `/api/followups/due` | GET | n8n fetches leads due for follow-up | `x-callback-secret` |
 | `/api/followups/done` | POST | n8n marks a follow-up as sent | `x-callback-secret` |
+| `/api/appointments/reminders` | GET | n8n fetches reminders due now | `x-callback-secret` |
+| `/api/appointments/reminded` | POST | n8n marks a reminder as sent | `x-callback-secret` |
 
 ## Known limitations
 
@@ -128,6 +136,8 @@ This is an MVP. Honest list of what it does not do yet:
 - The welcome email still uses "reply to unsubscribe"; only follow-up emails have the signed link
 - No billing, team invites, WhatsApp/SMS, or CSV import
 - Supabase free tier pauses inactive projects, so it is fine for a demo but not for paying customers
+- Appointments are created manually; there is no calendar sync or public booking page, and double-booking is not prevented yet
+- Reminders use one global timezone and go to a single Telegram chat
 
 ## Roadmap
 
