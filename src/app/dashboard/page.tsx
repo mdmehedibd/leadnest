@@ -21,6 +21,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [captureKey, setCaptureKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(true);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [error, setError] = useState("");
@@ -36,7 +38,7 @@ export default function DashboardPage() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("leads")
-        .select("id,name,email,phone,message,budget,status,score,category,created_at")
+      .select("id,name,email,phone,message,budget,status,score,category,created_at")
       .order("created_at", { ascending: false });
     if (error) {
       setError(error.message);
@@ -66,6 +68,14 @@ export default function DashboardPage() {
         return;
       }
       setOrgId(profile.organization_id);
+
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("capture_key")
+        .eq("id", profile.organization_id)
+        .single();
+      if (org) setCaptureKey(org.capture_key);
+
       await loadLeads();
       setChecking(false);
     }
@@ -102,6 +112,20 @@ export default function DashboardPage() {
     await loadLeads();
   }
 
+  const captureUrl = captureKey
+    ? `${window.location.origin}/capture/${captureKey}`
+    : "";
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(captureUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Could not copy. Select the link and copy manually.");
+    }
+  }
+
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -129,6 +153,31 @@ export default function DashboardPage() {
           Log out
         </button>
       </div>
+
+      {captureUrl && (
+        <div className="mt-6 rounded border border-gray-600 p-3">
+          <h2 className="text-sm font-semibold">Your capture link</h2>
+          <p className="mt-1 text-xs opacity-70">
+            Share this link or embed it on your website or ads. Leads go
+            straight to this dashboard.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <input
+              readOnly
+              value={captureUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              className="w-full rounded border bg-white p-2 text-xs text-black"
+            />
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="rounded bg-blue-600 px-3 py-2 text-sm text-white"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleAddLead} className="mt-8 space-y-3">
         <h2 className="text-xl font-semibold">Add lead</h2>
@@ -158,7 +207,7 @@ export default function DashboardPage() {
             <li key={l.id} className="rounded border border-gray-600 p-3">
               <div className="flex justify-between">
                 <span className="font-semibold">{l.name}</span>
-                                <span className="text-xs uppercase">
+                <span className="text-xs uppercase">
                   {l.category ? (
                     <b
                       className={
