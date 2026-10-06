@@ -295,62 +295,75 @@ export default function DashboardPage() {
 
           {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
 
-          {/* Lead list */}
-          <div className="mt-4 space-y-3">
-            {visible.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-800 p-10 text-center text-sm text-slate-500">
-                {leads.length === 0
-                  ? "No leads yet. Share your capture link or add one manually."
-                  : "No leads in this category."}
-              </div>
-            ) : (
-              visible.map((l) => (
-                <article
-                  key={l.id}
-                  className="rounded-xl border border-slate-800 bg-slate-900 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate font-semibold">{l.name}</h3>
-                      <p className="truncate text-sm text-slate-400">
-                        {[l.email, l.phone].filter(Boolean).join(" · ") ||
-                          "No contact info"}
-                      </p>
-                    </div>
-                    {l.category ? (
-                      <span
-                        className={
-                          "shrink-0 rounded-full px-3 py-1 text-xs font-bold uppercase ring-1 " +
-                          (BADGE[l.category] ?? "")
-                        }
+                    {/* Lead list (table) */}
+          {visible.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-dashed border-slate-800 p-10 text-center text-sm text-slate-500">
+              {leads.length === 0
+                ? "No leads yet. Share your capture link or add one manually."
+                : "No leads in this category."}
+            </div>
+          ) : (
+            <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="border-b border-slate-800 text-xs uppercase tracking-wide text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Contact</th>
+                    <th className="px-4 py-3 font-medium">Budget</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Message</th>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {visible.map((l) => (
+                    <tr key={l.id} className="hover:bg-slate-800/50">
+                      <td className="px-4 py-3 font-medium text-slate-100">
+                        {l.name}
+                      </td>
+                      <td className="px-4 py-3 text-slate-300">
+                        <div>{l.email ?? "-"}</div>
+                        <div className="text-xs text-slate-500">
+                          {l.phone ?? ""}
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-300">
+                        {l.budget !== null
+                          ? "$" + Number(l.budget).toLocaleString()
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {l.category ? (
+                          <span
+                            className={
+                              "whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold uppercase ring-1 " +
+                              (BADGE[l.category] ?? "")
+                            }
+                          >
+                            {l.category} {l.score}
+                          </span>
+                        ) : (
+                          <span className="text-xs uppercase text-slate-500">
+                            unqualified
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        className="max-w-[200px] truncate px-4 py-3 text-slate-400"
+                        title={l.message ?? ""}
                       >
-                        {l.category} {l.score}
-                      </span>
-                    ) : (
-                      <span className="shrink-0 rounded-full px-3 py-1 text-xs uppercase text-slate-500 ring-1 ring-slate-700">
-                        unqualified
-                      </span>
-                    )}
-                  </div>
-                  {l.budget !== null && (
-                    <div className="mt-2 text-sm text-slate-300">
-                      Budget:{" "}
-                      <span className="font-medium">
-                        ${Number(l.budget).toLocaleString()}
-                      </span>
-                    </div>
-                  )}
-                  {l.message && (
-                    <p className="mt-1 text-sm text-slate-400">{l.message}</p>
-                  )}
-                  <div className="mt-2 text-xs text-slate-600">
-                    {new Date(l.created_at).toLocaleString()}
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
+                        {l.message ?? "-"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                        {new Date(l.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          </section>
       </main>
     </div>
   );
