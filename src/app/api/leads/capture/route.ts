@@ -40,10 +40,12 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+
   // Honeypot: bot এই লুকানো ঘর ভরে ফেলে
   if (body.website) {
     return NextResponse.json({ success: true }, { status: 201 });
   }
+
   const supabase = createAdminClient();
 
   const { data: org } = await supabase
@@ -58,6 +60,7 @@ export async function POST(request: Request) {
       { status: 401 }
     );
   }
+
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
 
@@ -76,6 +79,8 @@ export async function POST(request: Request) {
   }
 
   // Duplicate: একই org-এ একই email ১০ মিনিটে নয়
+  // মনে রাখুন: test করার সময় একই email বারবার দিলে এখানেই থেমে যাবে,
+  // n8n-কে ডাকা হবে না। প্রতিবার আলাদা email ব্যবহার করুন।
   if (email) {
     const tenAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     const { count: dupCount } = await supabase
@@ -88,6 +93,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true }, { status: 201 });
     }
   }
+
   const { data: lead, error } = await supabase
     .from("leads")
     .insert({
@@ -106,22 +112,30 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
+    console.error("Could not save lead:", error.message);
     return NextResponse.json(
       { success: false, error: "Could not save lead" },
       { status: 500 }
     );
   }
+
   // n8n-কে জানাও। এটা fail করলেও lead save থেকে যাবে।
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
-  if (webhookUrl) {
+  const webhookSecret = process.env.N8N_WEBHOOK_SECRET;
+
+  if (!webhookUrl) {
+    console.error("N8N_WEBHOOK_URL is missing; lead saved but not sent to n8n");
+  } else if (!webhookSecret) {
+    console.error("N8N_WEBHOOK_SECRET is missing; skipping n8n call");
+  } else {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
+    const timer = setTimeout(() => controller.abort(), 8000);
     try {
-      await fetch(webhookUrl, {
+      const res = await fetch(webhookUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-webhook-secret": process.env.N8N_WEBHOOK_SECRET ?? "",
+          "x-webhook-secret": webhookSecret,
         },
         body: JSON.stringify({
           lead_id: lead.id,
@@ -136,11 +150,22 @@ export async function POST(request: Request) {
         }),
         signal: controller.signal,
       });
+
+      // fetch 403/404/500 পেলেও exception ছোড়ে না, তাই status নিজে দেখতে হয়
+      if (!res.ok) {
+        console.error(
+          "n8n webhook returned non-OK status:",
+          res.status,
+          "lead_id:",
+          lead.id
+        );
+      }
     } catch (err) {
-      console.error("n8n webhook failed:", err);
+      console.error("n8n webhook failed:", err, "lead_id:", lead.id);
     } finally {
       clearTimeout(timer);
     }
   }
+
   return NextResponse.json({ success: true, id: lead.id }, { status: 201 });
 }

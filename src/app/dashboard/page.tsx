@@ -61,6 +61,7 @@ const STATUS_LABEL: Record<string, string> = {
   contacted: "Contacted",
   closed: "Closed",
 };
+
 const TIMELINE_LABEL: Record<string, string> = {
   asap: "Within 30 days",
   "1_3_months": "1-3 months",
@@ -68,6 +69,7 @@ const TIMELINE_LABEL: Record<string, string> = {
   "6_plus_months": "6+ months",
   browsing: "Just browsing",
 };
+
 function greetingFor(d: Date): string {
   const h = d.getHours();
   if (h >= 5 && h < 12) return "Good morning";
@@ -377,7 +379,7 @@ export default function DashboardPage() {
     const list = leads.filter((l) => {
       if (filter !== "all" && l.category !== filter) return false;
       if (!q) return true;
-      return [l.name, l.email, l.phone, l.message]
+      return [l.name, l.email, l.phone, l.location, l.message]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
@@ -472,6 +474,9 @@ export default function DashboardPage() {
   const showLeadTable = view === "dashboard" || view === "leads";
   const leadRows = view === "dashboard" ? visible.slice(0, 8) : visible;
 
+  // সব header cell এক লাইনে রাখার জন্য
+  const th = "whitespace-nowrap px-4 py-3 font-medium";
+
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100">
       {/* Sidebar */}
@@ -546,7 +551,8 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-8">
+        {/* max-w বাড়ানো হয়েছে যাতে table বড় জায়গা পায় */}
+        <main className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 md:px-8">
           {/* Greeting */}
           <section className="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -683,16 +689,38 @@ export default function DashboardPage() {
                   className="mt-4 space-y-3 rounded-xl border border-slate-800 bg-slate-900 p-4"
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <input className={field} placeholder="Name *" value={name}
-                      onChange={(e) => setName(e.target.value)} required />
-                    <input className={field} type="email" placeholder="Email" value={leadEmail}
-                      onChange={(e) => setLeadEmail(e.target.value)} />
-                    <input className={field} placeholder="Phone" value={phone}
-                      onChange={(e) => setPhone(e.target.value)} />
-                    <input className={field} type="number" placeholder="Budget (USD)" value={budget}
-                      onChange={(e) => setBudget(e.target.value)} />
-                      <select className={field} value={leadTimeline}
-                      onChange={(e) => setLeadTimeline(e.target.value)}>
+                    <input
+                      className={field}
+                      placeholder="Name *"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                    <input
+                      className={field}
+                      type="email"
+                      placeholder="Email"
+                      value={leadEmail}
+                      onChange={(e) => setLeadEmail(e.target.value)}
+                    />
+                    <input
+                      className={field}
+                      placeholder="Phone"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
+                    <input
+                      className={field}
+                      type="number"
+                      placeholder="Budget (USD)"
+                      value={budget}
+                      onChange={(e) => setBudget(e.target.value)}
+                    />
+                    <select
+                      className={field}
+                      value={leadTimeline}
+                      onChange={(e) => setLeadTimeline(e.target.value)}
+                    >
                       <option value="">Timeline (optional)</option>
                       <option value="asap">Within 30 days</option>
                       <option value="1_3_months">1-3 months</option>
@@ -700,13 +728,25 @@ export default function DashboardPage() {
                       <option value="6_plus_months">6+ months</option>
                       <option value="browsing">Just browsing</option>
                     </select>
-                    <input className={field} placeholder="Location" value={leadLocation}
-                      onChange={(e) => setLeadLocation(e.target.value)} />
+                    <input
+                      className={field}
+                      placeholder="Location"
+                      value={leadLocation}
+                      onChange={(e) => setLeadLocation(e.target.value)}
+                    />
                   </div>
-                  <textarea className={field} rows={3} placeholder="Message" value={message}
-                    onChange={(e) => setMessage(e.target.value)} />
-                  <button type="submit" disabled={saving}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50">
+                  <textarea
+                    className={field}
+                    rows={3}
+                    placeholder="Message"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                  />
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+                  >
                     {saving ? "Saving..." : "Save lead"}
                   </button>
                 </form>
@@ -720,30 +760,41 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
-                  <table className="w-full min-w-[960px] text-left text-sm">
+                  {/* min-w বাড়ানো হয়েছে, ছোট স্ক্রিনে আড়াআড়ি scroll হবে */}
+                  <table className="w-full min-w-[1300px] text-left text-sm">
                     <thead className="border-b border-slate-800 text-xs text-slate-400">
                       <tr>
-                        <th className="px-4 py-3 font-medium">
-                          <button onClick={() => toggleSort("name")} className="hover:text-slate-200">
+                        <th className={th}>
+                          <button
+                            onClick={() => toggleSort("name")}
+                            className="hover:text-slate-200"
+                          >
                             Name{arrow("name")}
                           </button>
                         </th>
-                        <th className="px-4 py-3 font-medium">Email</th>
-                        <th className="px-4 py-3 font-medium">Phone</th>
-                        <th className="px-4 py-3 font-medium">
-                          <button onClick={() => toggleSort("budget")} className="hover:text-slate-200">
+                        <th className={th}>Email</th>
+                        <th className={th}>Phone</th>
+                        <th className={th}>Location</th>
+                        <th className={th}>
+                          <button
+                            onClick={() => toggleSort("budget")}
+                            className="hover:text-slate-200"
+                          >
                             Budget{arrow("budget")}
                           </button>
                         </th>
-                        <th className="px-4 py-3 font-medium">Timeline</th>
-                        <th className="px-4 py-3 font-medium">
-                          <button onClick={() => toggleSort("score")} className="hover:text-slate-200">
+                        <th className={th}>Timeline</th>
+                        <th className={th}>
+                          <button
+                            onClick={() => toggleSort("score")}
+                            className="hover:text-slate-200"
+                          >
                             AI Category{arrow("score")}
                           </button>
                         </th>
-                        <th className="px-4 py-3 font-medium">Follow-up</th>
-                        <th className="px-4 py-3 font-medium">Appointment</th>
-                        <th className="px-4 py-3 font-medium">Stage</th>
+                        <th className={th}>Follow-up</th>
+                        <th className={th}>Appointment</th>
+                        <th className={th}>Stage</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
@@ -753,14 +804,17 @@ export default function DashboardPage() {
                           onClick={() => openLead(l.id)}
                           className="cursor-pointer hover:bg-slate-800/50"
                         >
-                          <td className="px-4 py-3 font-semibold text-slate-100">
+                          <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-100">
                             {l.name}
                           </td>
-                          <td className="px-4 py-3 text-slate-400">
+                          <td className="whitespace-nowrap px-4 py-3 text-slate-400">
                             {l.email ?? "-"}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-slate-400">
                             {l.phone ?? "-"}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-slate-400">
+                            {l.location ?? "-"}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-200">
                             {l.budget !== null
@@ -770,7 +824,7 @@ export default function DashboardPage() {
                           <td className="whitespace-nowrap px-4 py-3 text-slate-400">
                             {l.timeline ? TIMELINE_LABEL[l.timeline] : "-"}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="whitespace-nowrap px-4 py-3">
                             {l.category ? (
                               <span
                                 className={
@@ -778,7 +832,11 @@ export default function DashboardPage() {
                                   (BADGE[l.category] ?? "")
                                 }
                               >
-                                <span className={`h-1.5 w-1.5 rounded-full ${DOT[l.category] ?? ""}`} />
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${
+                                    DOT[l.category] ?? ""
+                                  }`}
+                                />
                                 {l.category} {l.score}
                               </span>
                             ) : (
@@ -857,6 +915,7 @@ export default function DashboardPage() {
                 {STATUS_LABEL[selected.status] ?? selected.status}
               </span>
             </div>
+
             {selected.category && (
               <div
                 className={
@@ -895,6 +954,7 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+
             <dl className="mt-6 space-y-4 text-sm">
               <div>
                 <dt className="text-xs uppercase text-slate-500">Email</dt>
