@@ -17,6 +17,10 @@ type Lead = {
   category: string | null;
   followup_step: number;
   unsubscribed: boolean;
+  timeline: string | null;
+  location: string | null;
+  ai_reasons: string[] | null;
+  recommended_action: string | null;
   created_at: string;
 };
 
@@ -57,7 +61,13 @@ const STATUS_LABEL: Record<string, string> = {
   contacted: "Contacted",
   closed: "Closed",
 };
-
+const TIMELINE_LABEL: Record<string, string> = {
+  asap: "Within 30 days",
+  "1_3_months": "1-3 months",
+  "3_6_months": "3-6 months",
+  "6_plus_months": "6+ months",
+  browsing: "Just browsing",
+};
 function greetingFor(d: Date): string {
   const h = d.getHours();
   if (h >= 5 && h < 12) return "Good morning";
@@ -91,6 +101,8 @@ export default function DashboardPage() {
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
   const [budget, setBudget] = useState("");
+  const [leadTimeline, setLeadTimeline] = useState("");
+  const [leadLocation, setLeadLocation] = useState("");
 
   const [apptWhen, setApptWhen] = useState("");
   const [apptType, setApptType] = useState<Appointment["type"]>("property_visit");
@@ -110,7 +122,7 @@ export default function DashboardPage() {
     const { data, error } = await supabase
       .from("leads")
       .select(
-        "id,name,email,phone,message,budget,status,source,score,category,followup_step,unsubscribed,created_at"
+        "id,name,email,phone,message,budget,status,source,score,category,followup_step,unsubscribed,timeline,location,ai_reasons,recommended_action,created_at"
       )
       .order("created_at", { ascending: false });
     if (error) {
@@ -182,6 +194,8 @@ export default function DashboardPage() {
       phone: phone || null,
       message: message || null,
       budget: budget ? Number(budget) : null,
+      timeline: leadTimeline || null,
+      location: leadLocation.trim() || null,
       source: "manual",
     });
 
@@ -195,6 +209,8 @@ export default function DashboardPage() {
     setPhone("");
     setMessage("");
     setBudget("");
+    setLeadTimeline("");
+    setLeadLocation("");
     setShowForm(false);
     await loadLeads();
   }
@@ -675,6 +691,17 @@ export default function DashboardPage() {
                       onChange={(e) => setPhone(e.target.value)} />
                     <input className={field} type="number" placeholder="Budget (USD)" value={budget}
                       onChange={(e) => setBudget(e.target.value)} />
+                      <select className={field} value={leadTimeline}
+                      onChange={(e) => setLeadTimeline(e.target.value)}>
+                      <option value="">Timeline (optional)</option>
+                      <option value="asap">Within 30 days</option>
+                      <option value="1_3_months">1-3 months</option>
+                      <option value="3_6_months">3-6 months</option>
+                      <option value="6_plus_months">6+ months</option>
+                      <option value="browsing">Just browsing</option>
+                    </select>
+                    <input className={field} placeholder="Location" value={leadLocation}
+                      onChange={(e) => setLeadLocation(e.target.value)} />
                   </div>
                   <textarea className={field} rows={3} placeholder="Message" value={message}
                     onChange={(e) => setMessage(e.target.value)} />
@@ -693,7 +720,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
-                  <table className="w-full min-w-[860px] text-left text-sm">
+                  <table className="w-full min-w-[960px] text-left text-sm">
                     <thead className="border-b border-slate-800 text-xs text-slate-400">
                       <tr>
                         <th className="px-4 py-3 font-medium">
@@ -708,6 +735,7 @@ export default function DashboardPage() {
                             Budget{arrow("budget")}
                           </button>
                         </th>
+                        <th className="px-4 py-3 font-medium">Timeline</th>
                         <th className="px-4 py-3 font-medium">
                           <button onClick={() => toggleSort("score")} className="hover:text-slate-200">
                             AI Category{arrow("score")}
@@ -738,6 +766,9 @@ export default function DashboardPage() {
                             {l.budget !== null
                               ? "$" + Number(l.budget).toLocaleString()
                               : "-"}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-slate-400">
+                            {l.timeline ? TIMELINE_LABEL[l.timeline] : "-"}
                           </td>
                           <td className="px-4 py-3">
                             {l.category ? (
@@ -826,7 +857,44 @@ export default function DashboardPage() {
                 {STATUS_LABEL[selected.status] ?? selected.status}
               </span>
             </div>
-
+            {selected.category && (
+              <div
+                className={
+                  "mt-6 rounded-xl p-4 ring-1 " +
+                  (BADGE[selected.category] ?? "")
+                }
+              >
+                <div className="text-xs font-bold uppercase">
+                  {selected.category === "hot" ? "🔥 " : ""}
+                  {selected.category} lead
+                </div>
+                <div className="mt-1 text-lg font-bold">
+                  Score: {selected.score}/100
+                </div>
+                {selected.ai_reasons && selected.ai_reasons.length > 0 && (
+                  <>
+                    <div className="mt-3 text-xs uppercase opacity-80">
+                      Reasons
+                    </div>
+                    <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-200">
+                      {selected.ai_reasons.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {selected.recommended_action && (
+                  <>
+                    <div className="mt-3 text-xs uppercase opacity-80">
+                      Recommended action
+                    </div>
+                    <p className="mt-1 text-sm text-slate-100">
+                      {selected.recommended_action}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
             <dl className="mt-6 space-y-4 text-sm">
               <div>
                 <dt className="text-xs uppercase text-slate-500">Email</dt>
@@ -843,6 +911,16 @@ export default function DashboardPage() {
                     ? "$" + Number(selected.budget).toLocaleString()
                     : "-"}
                 </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase text-slate-500">Timeline</dt>
+                <dd className="text-slate-200">
+                  {selected.timeline ? TIMELINE_LABEL[selected.timeline] : "-"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase text-slate-500">Location</dt>
+                <dd className="text-slate-200">{selected.location ?? "-"}</dd>
               </div>
               <div>
                 <dt className="text-xs uppercase text-slate-500">Message</dt>

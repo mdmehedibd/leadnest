@@ -28,6 +28,15 @@ export async function POST(request: Request) {
   const orgId = String(body.organization_id ?? "");
   const category = String(body.category ?? "").toLowerCase();
   const score = Number(body.score);
+  const reasons = Array.isArray(body.reasons)
+    ? body.reasons
+        .map((r) => String(r).trim().slice(0, 200))
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+  const action = body.recommended_action
+    ? String(body.recommended_action).trim().slice(0, 200)
+    : null;
 
   if (
     !UUID_RE.test(leadId) ||
@@ -46,9 +55,11 @@ export async function POST(request: Request) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("leads")
-        .update({
+    .update({
       category,
       score,
+      ai_reasons: reasons,
+      recommended_action: action,
       next_followup_at:
         category === "hot"
           ? null

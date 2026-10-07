@@ -13,6 +13,8 @@ export default function CapturePage() {
   const [status, setStatus] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [error, setError] = useState("");
   const [website, setWebsite] = useState("");
+  const [timeline, setTimeline] = useState("");
+  const [leadLocation, setLeadLocation] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +33,8 @@ export default function CapturePage() {
           budget,
           message,
           website,
+          timeline,
+          location: leadLocation,
         }),
       });
       const json = await res.json();
@@ -84,6 +88,17 @@ export default function CapturePage() {
           onChange={(e) => setPhone(e.target.value)} />
         <input className={input} type="number" placeholder="Budget (USD)" value={budget}
           onChange={(e) => setBudget(e.target.value)} />
+        <select className={input} value={timeline}
+          onChange={(e) => setTimeline(e.target.value)}>
+          <option value="">When do you want to buy?</option>
+          <option value="asap">Within 30 days</option>
+          <option value="1_3_months">1-3 months</option>
+          <option value="3_6_months">3-6 months</option>
+          <option value="6_plus_months">6+ months</option>
+          <option value="browsing">Just browsing</option>
+        </select>
+        <input className={input} placeholder="Preferred location (city/area)" value={leadLocation}
+          onChange={(e) => setLeadLocation(e.target.value)} />
         <textarea className={input} placeholder="What are you looking for?" value={message}
           onChange={(e) => setMessage(e.target.value)} />
 

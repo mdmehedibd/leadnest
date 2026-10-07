@@ -17,6 +17,12 @@ export async function POST(request: Request) {
   const email = body.email ? String(body.email).trim() : null;
   const phone = body.phone ? String(body.phone).trim() : null;
   const message = body.message ? String(body.message).trim() : null;
+  const TIMELINES = ["asap", "1_3_months", "3_6_months", "6_plus_months", "browsing"];
+  const timelineRaw = String(body.timeline ?? "");
+  const timeline = TIMELINES.includes(timelineRaw) ? timelineRaw : null;
+  const location = body.location
+    ? String(body.location).trim().slice(0, 100)
+    : null;
   const budget =
     body.budget !== undefined && body.budget !== "" && !isNaN(Number(body.budget))
       ? Number(body.budget)
@@ -92,6 +98,8 @@ export async function POST(request: Request) {
       message,
       budget,
       source: "website",
+      timeline,
+      location,
       client_ip: ip,
     })
     .select("id")
@@ -123,6 +131,8 @@ export async function POST(request: Request) {
           phone,
           message,
           budget,
+          timeline,
+          location,
         }),
         signal: controller.signal,
       });
