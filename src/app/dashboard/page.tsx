@@ -81,6 +81,7 @@ export default function DashboardPage() {
   const [apptNotes, setApptNotes] = useState("");
   const [apptSaving, setApptSaving] = useState(false);
   const [apptError, setApptError] = useState("");
+  const [conflictWarn, setConflictWarn] = useState("");
 
   const loadLeads = useCallback(async () => {
     const supabase = createClient();
@@ -186,10 +187,27 @@ export default function DashboardPage() {
       setApptError("Please choose a valid date and time.");
       return;
     }
-    if (when.getTime() < Date.now()) {
+        if (when.getTime() < Date.now()) {
       setApptError("Please choose a time in the future.");
       return;
     }
+
+    // একই সময়ের (±30 মিনিট) আরেকটা scheduled appointment আছে?
+    const clash = appts.find(
+      (a) =>
+        a.status === "scheduled" &&
+        Math.abs(new Date(a.scheduled_at).getTime() - when.getTime()) <
+          30 * 60 * 1000
+    );
+    if (clash && !conflictWarn) {
+      setConflictWarn(
+        `Another appointment with ${
+          leadName.get(clash.lead_id) ?? "a lead"
+        } is at ${fmt(clash.scheduled_at)}. Press "Schedule anyway" to continue.`
+      );
+      return;
+    }
+    setConflictWarn("");
 
     setApptSaving(true);
     const supabase = createClient();
@@ -265,6 +283,7 @@ export default function DashboardPage() {
   function openLead(id: string) {
     setSelectedId(id);
     setApptError("");
+    setConflictWarn("");
   }
 
   const selected = useMemo(
@@ -733,7 +752,10 @@ export default function DashboardPage() {
                 <input
                   type="datetime-local"
                   value={apptWhen}
-                  onChange={(e) => setApptWhen(e.target.value)}
+                  onChange={(e) => {
+                    setApptWhen(e.target.value);
+                    setConflictWarn("");
+                  }}
                   className={field}
                   required
                 />
@@ -758,12 +780,21 @@ export default function DashboardPage() {
                 {apptError && (
                   <p className="text-sm text-red-400">{apptError}</p>
                 )}
+                {conflictWarn && (
+                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-sm text-amber-300">
+                    {conflictWarn}
+                  </p>
+                )}
                 <button
                   type="submit"
                   disabled={apptSaving}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
                 >
-                  {apptSaving ? "Saving..." : "Schedule appointment"}
+                  {apptSaving
+                    ? "Saving..."
+                    : conflictWarn
+                    ? "Schedule anyway"
+                    : "Schedule appointment"}
                 </button>
               </form>
 
